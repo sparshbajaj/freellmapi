@@ -5,10 +5,9 @@ WORKDIR /app
 # Install build essentials for native modules like better-sqlite3
 RUN apk add --no-cache python3 make g++
 
-COPY package*.json ./
-RUN npm ci
-
+# Copy the entire project first so npm workspaces are detected correctly
 COPY . .
+RUN npm ci
 RUN npm run build
 
 # Stage 2: Production runtime image
@@ -19,13 +18,11 @@ ENV NODE_ENV=production
 # better-sqlite3 requires node-gyp dependencies at runtime sometimes, or prebuilt binaries
 RUN apk add --no-cache python3 make g++
 
-COPY package*.json ./
-RUN npm ci --only=production
-
-# Copy built assets from builder stage
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/.env.example ./.env.example
+# Copy the entire project for production install to detect workspaces
+COPY . .
+RUN npm ci --omit=dev
 
 EXPOSE 3001
 
-CMD ["npm", "run", "start"]
+# The start script is inside the server workspace
+CMD ["npm", "run", "start", "-w", "server"]
