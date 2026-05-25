@@ -8,6 +8,9 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
+      - ENCRYPTION_KEY=64402636a6f68c7849c7160759f23924375f9227653782236537822365378223
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped
 
 x-casaos:
