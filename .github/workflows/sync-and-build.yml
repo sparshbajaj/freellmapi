@@ -16,10 +16,26 @@ jobs:
       # 1. Check for the latest release on the upstream repository
       - name: Check upstream release
         id: upstream_release
-        uses: lucacome/check-release@v1
-        with:
-          repository: tashfeenahmed/freellmapi
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/tashfeenahmed/freellmapi/releases/latest | jq -r .tag_name)
+          if [ "$LATEST_RELEASE" == "null" ] || [ -z "$LATEST_RELEASE" ]; then
+            echo "No release found on upstream, falling back to main branch or exiting."
+            exit 1
+          fi
+          
+          echo "Upstream latest release: $LATEST_RELEASE"
+          
+          # Check if we already have a tag for this release
+          OUR_TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$LATEST_RELEASE | jq -r .object.sha)
+          
+          if [ "$OUR_TAG" != "null" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "new_release=false" >> $GITHUB_OUTPUT
+            echo "Release $LATEST_RELEASE is already built."
+          else
+            echo "new_release=true" >> $GITHUB_OUTPUT
+            echo "release=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+            echo "Found new release to build: $LATEST_RELEASE"
+          fi
 
       # 2. If a new release is found, checkout the code from the upstream tag
       - name: Checkout upstream code
@@ -87,9 +103,13 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'refs/tags/' + '${{ steps.upstream_release.outputs.release }}',
-              sha: context.sha
-            })
+            try {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'refs/tags/' + '${{ steps.upstream_release.outputs.release }}',
+                sha: context.sha
+              });
+            } catch (e) {
+              console.log("Tag might already exist, ignoring error:", e);
+            }
