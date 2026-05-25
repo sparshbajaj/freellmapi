@@ -1,0 +1,23 @@
+name: freellmapi
+
+services:
+  freellmapi:
+    image: ghcr.io/sparshbajaj/freellmapi:latest
+    container_name: freellmapi
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: freellmapi
+  description: "FreeLLMAPI - Dockerized application"
+  title: FreeLLMAPI
+  icon: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+  index: /
+  port_map: "3001"
+  author: "sparshbajaj"
