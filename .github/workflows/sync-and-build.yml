@@ -23,35 +23,35 @@ jobs:
 
       # 2. If a new release is found, checkout the code from the upstream tag
       - name: Checkout upstream code
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         uses: actions/checkout@v4
         with:
           repository: tashfeenahmed/freellmapi
-          ref: ${{ steps:upstream_release.outputs.release }}
+          ref: ${{ steps.upstream_release.outputs.release }}
           path: src
 
       # 3. Checkout your own repo to pull the Dockerfile into the workspace
       - name: Checkout configuration (Your Dockerfile)
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         uses: actions/checkout@v4
         with:
           path: config
 
       # 4. Move Dockerfile to the code folder
       - name: Prepare build workspace
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         run: |
           cp config/Dockerfile src/Dockerfile
           cd src
 
       # 5. Set up Docker Buildx
       - name: Set up Docker Buildx
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         uses: docker/setup-buildx-action@v3
 
       # 6. Log in to GitHub Container Registry (GHCR)
       - name: Log in to GHCR
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -60,7 +60,7 @@ jobs:
 
       # 7. Extract lowercase repository name for safe Docker tagging
       - name: Downcase Repo Owner
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         id: string
         run: |
           echo "owner_lc=${OWNER,,}" >> ${GITHUB_OUTPUT}
@@ -69,27 +69,27 @@ jobs:
 
       # 8. Build and Push the Docker Image
       - name: Build and Push Docker image
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./src
           file: ./src/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ steps:string.outputs.owner_lc }}/freellmapi:latest
-            ghcr.io/${{ steps:string.outputs.owner_lc }}/freellmapi:${{ steps:upstream_release.outputs.release }}
+            ghcr.io/${{ steps.string.outputs.owner_lc }}/freellmapi:latest
+            ghcr.io/${{ steps.string.outputs.owner_lc }}/freellmapi:${{ steps.upstream_release.outputs.release }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       # 9. Create a matching release tag in your own repository to mark it as built
       - name: Tag own repository
-        if: steps:upstream_release.outputs.new_release == 'true'
+        if: steps.upstream_release.outputs.new_release == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: 'refs/tags/' + '${{ steps:upstream_release.outputs.release }}',
+              ref: 'refs/tags/' + '${{ steps.upstream_release.outputs.release }}',
               sha: context.sha
             })
