@@ -13,37 +13,39 @@ jobs:
       packages: write
 
     steps:
-      # 1. Check for the latest release on the upstream repository
-      - name: Check upstream release
+      # 1. Check for the latest commit on the upstream repository's main branch
+      - name: Check upstream commit
         id: upstream_release
         run: |
-          LATEST_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/tashfeenahmed/freellmapi/releases/latest | jq -r .tag_name)
-          if [ "$LATEST_RELEASE" == "null" ] || [ -z "$LATEST_RELEASE" ]; then
-            echo "No release found on upstream, falling back to main branch or exiting."
+          LATEST_SHA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/tashfeenahmed/freellmapi/commits/main | jq -r .sha)
+          
+          if [ "$LATEST_SHA" == "null" ] || [ -z "$LATEST_SHA" ]; then
+            echo "Error fetching upstream commit."
             exit 1
           fi
           
-          echo "Upstream latest release: $LATEST_RELEASE"
+          SHORT_SHA=${LATEST_SHA:0:7}
+          echo "Upstream latest commit: $SHORT_SHA"
           
-          # Check if we already have a tag for this release
-          OUR_TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$LATEST_RELEASE | jq -r .object.sha)
+          # Check if we already have a tag for this commit
+          OUR_TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/git/refs/tags/build-$SHORT_SHA | jq -r .object.sha)
           
           if [ "$OUR_TAG" != "null" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
             echo "new_release=false" >> $GITHUB_OUTPUT
-            echo "Release $LATEST_RELEASE is already built."
+            echo "Commit $SHORT_SHA is already built."
           else
             echo "new_release=true" >> $GITHUB_OUTPUT
-            echo "release=$LATEST_RELEASE" >> $GITHUB_OUTPUT
-            echo "Found new release to build: $LATEST_RELEASE"
+            echo "release=$SHORT_SHA" >> $GITHUB_OUTPUT
+            echo "Found new commit to build: $SHORT_SHA"
           fi
 
-      # 2. If a new release is found, checkout the code from the upstream tag
+      # 2. Checkout the upstream code
       - name: Checkout upstream code
         if: steps.upstream_release.outputs.new_release == 'true'
         uses: actions/checkout@v4
         with:
           repository: tashfeenahmed/freellmapi
-          ref: ${{ steps.upstream_release.outputs.release }}
+          ref: main
           path: src
 
       # 3. Checkout your own repo to pull the Dockerfile into the workspace
@@ -107,7 +109,7 @@ jobs:
               await github.rest.git.createRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                ref: 'refs/tags/' + '${{ steps.upstream_release.outputs.release }}',
+                ref: 'refs/tags/build-' + '${{ steps.upstream_release.outputs.release }}',
                 sha: context.sha
               });
             } catch (e) {
